@@ -61,6 +61,23 @@ jobs:
           echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
           echo "Gradle project: $PROJECT_DIR"
 
+      - name: Refresh 16 KB alignment patch for pinned upstream source
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          mkdir -p patches
+          cat > patches/pcsx-rearmed-16kb-page-alignment.patch <<'PATCH'
+          --- a/jni/Android.mk
+          +++ b/jni/Android.mk
+          @@ -275,3 +275,4 @@
+           LOCAL_LDFLAGS       += -Wl,--gc-sections
+           LOCAL_LDFLAGS       += -Wl,-z,max-page-size=16384
+          +LOCAL_LDFLAGS       += -Wl,-z,common-page-size=16384
+           LOCAL_LDLIBS        := -lz -llog
+          PATCH
+          echo "16 KB linker patch refreshed for pinned PCSX ReARMed Android.mk."
+          sed -n '273,280p' patches/pcsx-rearmed-16kb-page-alignment.patch
+
       - name: Build native core when build script is included
         working-directory: ${{ steps.project.outputs.dir }}
         shell: bash

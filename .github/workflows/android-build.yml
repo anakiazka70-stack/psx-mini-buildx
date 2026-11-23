@@ -38,7 +38,12 @@ jobs:
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
           echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
           yes | "$SDKMANAGER" --sdk_root=/usr/local/lib/android/sdk --licenses || true
-          "$SDKMANAGER" --sdk_root=/usr/local/lib/android/sdk --install "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          "$SDKMANAGER" --sdk_root=/usr/local/lib/android/sdk --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.14.8"
 
       - name: Extract source archive
         run: |
@@ -91,13 +96,7 @@ jobs:
 
       - name: Build debug APK
         working-directory: ${{ steps.project.outputs.dir }}
-        run: |
-          if [ ! -f ./gradlew ]; then
-            echo "::error::Gradle wrapper (gradlew) is missing."
-            exit 1
-          fi
-          chmod +x ./gradlew
-          ./gradlew --no-daemon assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

@@ -1,0 +1,84 @@
+name: PSX Mini Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "PSX-Mini-Source-0.3.0-dev.zip"
+      - ".github/workflows/android-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Extract source archive
+        run: |
+          test -f "PSX-Mini-Source-0.3.0-dev.zip"
+          mkdir -p source
+          unzip -q "PSX-Mini-Source-0.3.0-dev.zip" -d source
+          echo "Archive contents:"
+          find source -maxdepth 3 -type f | sort | head -200
+
+      - name: Locate Gradle project
+        id: project
+        shell: bash
+        run: |
+          SETTINGS="$(find source -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          if [ -z "$SETTINGS" ]; then
+            echo "::error::No settings.gradle or settings.gradle.kts found in the source archive."
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "$SETTINGS")"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Gradle project: $PROJECT_DIR"
+
+      - name: Build native core when build script is included
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          if [ -f scripts/build_core_android.sh ]; then
+            chmod +x scripts/build_core_android.sh
+            ./scripts/build_core_android.sh
+          else
+            echo "::warning::scripts/build_core_android.sh is not present; native core build step skipped."
+          fi
+
+      - name: Build debug APK
+        working-directory: ${{ steps.project.outputs.dir }}
+        run: |
+          if [ ! -f ./gradlew ]; then
+            echo "::error::Gradle wrapper (gradlew) is missing."
+            exit 1
+          fi
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: psx-mini-debug-apk
+          path: |
+            ${{ steps.project.outputs.dir }}/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

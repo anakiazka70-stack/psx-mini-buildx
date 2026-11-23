@@ -118,6 +118,23 @@ jobs:
           print("Migrated Kotlin JVM target to compilerOptions DSL.")
           PY
 
+      - name: Fix imported game folder size lookup
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/src/main/java/com/psxmini/app/MainActivity.kt")
+          content = path.read_text()
+          old = "formatBytes(game.folderSize())"
+          new = "formatBytes(game.folder.folderSize())"
+          if old not in content:
+              raise SystemExit("Expected ImportedGame folder-size call was not found; refusing an unsafe rewrite.")
+          path.write_text(content.replace(old, new, 1))
+          print("Fixed folderSize() receiver to use ImportedGame.folder.")
+          PY
+
       - name: Build debug APK
         working-directory: ${{ steps.project.outputs.dir }}
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug

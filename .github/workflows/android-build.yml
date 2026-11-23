@@ -94,6 +94,30 @@ jobs:
             echo "::warning::scripts/build_core_android.sh is not present; native core build step skipped."
           fi
 
+      - name: Migrate Kotlin JVM target to compilerOptions DSL
+        working-directory: ${{ steps.project.outputs.dir }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/build.gradle.kts")
+          content = path.read_text()
+          legacy = '    kotlinOptions {\n        jvmTarget = "17"\n    }\n'
+          if legacy not in content:
+              raise SystemExit("Expected legacy kotlinOptions block was not found; refusing an unsafe rewrite.")
+          content = content.replace(legacy, "", 1)
+          if "import org.jetbrains.kotlin.gradle.dsl.JvmTarget" not in content:
+              content = "import org.jetbrains.kotlin.gradle.dsl.JvmTarget\n\n" + content
+          marker = "\ndependencies {"
+          compiler_options = "\nkotlin {\n    compilerOptions {\n        jvmTarget.set(JvmTarget.fromTarget(\"17\"))\n    }\n}\n"
+          if marker not in content:
+              raise SystemExit("Could not find dependencies block for Kotlin compilerOptions insertion.")
+          content = content.replace(marker, compiler_options + marker, 1)
+          path.write_text(content)
+          print("Migrated Kotlin JVM target to compilerOptions DSL.")
+          PY
+
       - name: Build debug APK
         working-directory: ${{ steps.project.outputs.dir }}
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
